@@ -1,0 +1,25 @@
+{{define "empty"}}
+<div class="main-widget-header">
+    <button id="toggle-sidebar" class="menu-btn" onclick="document.getElementById('notes-sidebar').classList.toggle('hidden')">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+    </button>
+    <span class="text-primary font-medium">Notes</span>
+</div>
+<div class="flex-1 overflow-y-auto glass-scrollbar" style="padding: 1.5rem;">
+    <div style="max-width: 640px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <i data-lucide="file-text" style="width: 48px; height: 48px; color: var(--color-accent); margin: 0 auto 0.75rem; display: block;"></i>
+            <h2 style="font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.5rem;">Notes</h2>
+            <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">Write markdown notes with full-text search</p>
+            <button class="btn btn-primary"
+                    hx-post="partials/create"
+                    hx-target="#main-widget-container"
+                    hx-swap="innerHTML">
+                <i data-lucide="plus" class="w-4 h-4"></i> Create New Note
+            </button>
+        </div>
+        <hr style="border-color: var(--color-glass-border); margin: 1.5rem 0;">
+        {{.DocsHTML}}
+    </div>
+</div>
+{{end}}

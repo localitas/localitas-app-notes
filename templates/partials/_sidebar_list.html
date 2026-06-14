@@ -1,0 +1,24 @@
+{{define "sidebar_list"}}
+<div class="sidebar-list" id="notes-sidebar-list">
+    {{range .Notes}}
+    <div class="sidebar-item {{if eq $.SelectedNoteID .ID}}active-purple{{end}}"
+         hx-get="partials/editor/{{.ID}}"
+         hx-target="#main-widget-container"
+         hx-swap="innerHTML"
+         hx-push-url="?id={{.ID}}">
+        <div class="sidebar-item-icon">
+            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+        </div>
+        <div class="sidebar-item-info">
+            <div class="sidebar-item-title">{{if .Title}}{{.Title}}{{else}}Untitled{{end}}</div>
+            {{if .Summary}}<div class="sidebar-item-meta">{{.Summary}}</div>{{end}}
+        </div>
+    </div>
+    {{else}}
+    <div class="text-center py-8 text-secondary">
+        <i data-lucide="file-text" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+        <p>No notes yet</p>
+    </div>
+    {{end}}
+</div>
+{{end}}

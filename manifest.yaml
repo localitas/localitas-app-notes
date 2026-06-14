@@ -1,0 +1,10 @@
+name: notes
+display_name: Notes
+description: Markdown notes with full-text search
+version: 0.1.0
+
+database:
+  name: notes
+  system: true
+
+migrations_dir: migrations

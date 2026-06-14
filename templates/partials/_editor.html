@@ -1,0 +1,52 @@
+{{define "editor"}}
+<div class="main-widget-header">
+    <button id="toggle-sidebar" class="menu-btn" onclick="document.getElementById('notes-sidebar').classList.toggle('hidden')">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+    </button>
+    <input type="text" id="note-title" name="title" value="{{.Note.Title}}"
+           placeholder="Untitled" class="note-title-input flex-1"
+           hx-post="partials/save/{{.Note.ID}}"
+           hx-trigger="blur changed"
+           hx-include="#note-content, #note-title"
+           hx-target="#main-widget-container"
+           hx-swap="innerHTML">
+    <button class="header-btn"
+            hx-post="partials/save/{{.Note.ID}}"
+            hx-include="#note-content, #note-title"
+            hx-target="#main-widget-container"
+            title="Save">
+        <i data-lucide="save" class="w-5 h-5"></i>
+    </button>
+    <button class="header-btn"
+            hx-post="partials/execute/{{.Note.ID}}"
+            hx-include="#note-content, #note-title"
+            hx-target="#main-widget-container"
+            title="Run All">
+        <i data-lucide="play" class="w-5 h-5"></i>
+    </button>
+    <button class="header-btn text-error btn-delete-confirm"
+            hx-delete="partials/delete/{{.Note.ID}}"
+            hx-target="#main-widget-container"
+            data-confirm-message="Delete this note?"
+            title="Delete">
+        <i data-lucide="trash-2" class="w-5 h-5"></i>
+    </button>
+    <button class="header-btn" onclick="toggleShortcutHelp()" title="Keyboard Shortcuts">
+        <i data-lucide="keyboard" class="w-5 h-5"></i>
+    </button>
+</div>
+<div class="flex-1 overflow-y-auto glass-scrollbar">
+    <div style="height: 100%; display: flex; flex-direction: column;">
+        <textarea id="note-content" name="content" class="markdown-editor"
+                  placeholder="Write your markdown here..."
+                  hx-post="partials/save/{{.Note.ID}}"
+                  hx-trigger="blur changed"
+                  hx-include="#note-content, #note-title"
+                  hx-target="#main-widget-container"
+                  hx-swap="innerHTML"
+                  style="flex:1;"
+        >{{.Note.Content}}</textarea>
+        <div id="execution-results">{{if .Results}}{{template "execution_results" .Results}}{{end}}</div>
+    </div>
+</div>
+{{end}}
