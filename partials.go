@@ -131,11 +131,7 @@ func (p *partialHandler) handleEmpty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
-	tmpl.ExecuteTemplate(w, "empty", struct {
-		DocsHTML template.HTML
-	}{
-		DocsHTML: RenderDocsHTML(NotesAPIDoc),
-	})
+	tmpl.ExecuteTemplate(w, "empty", nil)
 }
 
 func (p *partialHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
