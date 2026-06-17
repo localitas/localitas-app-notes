@@ -21,4 +21,3 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
-replace github.com/localitas/localitas-go => ../localitas-go
