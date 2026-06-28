@@ -1,6 +1,6 @@
 .PHONY: build test install uninstall start stop restart status logs logs-err \
        build-docker start-docker stop-docker restart-docker logs-docker \
-       lint strict-lint swagger
+       docker-push lint strict-lint swagger
 
 APP_NAME := notes
 PORT ?= 9202
@@ -97,6 +97,17 @@ restart-docker: stop-docker start-docker
 
 logs-docker:
 	@docker logs -f notes
+
+# ── Docker Registry (ghcr.io) ────────────────────────────────
+
+GHCR_IMAGE := ghcr.io/localitas/localitas-app-$(APP_NAME)
+
+docker-push: build-docker
+	docker tag $(APP_NAME):latest $(GHCR_IMAGE):latest
+	docker tag $(APP_NAME):latest $(GHCR_IMAGE):$(VERSION)
+	docker push $(GHCR_IMAGE):latest
+	docker push $(GHCR_IMAGE):$(VERSION)
+	@echo "✅ Pushed $(GHCR_IMAGE):latest and $(GHCR_IMAGE):$(VERSION)"
 
 # ── Release ───────────────────────────────────────────────────
 
