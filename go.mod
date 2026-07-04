@@ -9,6 +9,8 @@ require (
 	github.com/urfave/cli/v3 v3.9.1
 )
 
+replace github.com/localitas/localitas-go => ../localitas-go
+
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
@@ -20,4 +22,5 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
