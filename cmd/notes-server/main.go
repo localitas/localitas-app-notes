@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 var (
 	version = "dev"
 	commit  = "unknown"
+	logger  = slog.Default().With("component", "notes")
 )
 
 func envOrFileToken() string {
@@ -85,7 +87,7 @@ func serveAction(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
-	log.Printf("Notes database ready: %s", dbID)
+	logger.Info("database ready", "db_id", dbID)
 
 	if err := a.InitStore(coreURL, dbID, token); err != nil {
 		return fmt.Errorf("init store: %w", err)
@@ -93,7 +95,7 @@ func serveAction(ctx context.Context, cmd *cli.Command) error {
 	defer a.Store.Close()
 
 	a.Store.PythonRunner = notes.NewPythonRunner(coreURL+"/apps/shell/api", token)
-	log.Printf("Python runner configured via %s/apps/shell/api", coreURL)
+	logger.Info("python runner configured", "url", coreURL+"/apps/shell/api")
 
 	mux := http.NewServeMux()
 	a.RegisterRoutes(mux)
@@ -108,19 +110,19 @@ func serveAction(ctx context.Context, cmd *cli.Command) error {
 
 	selfURL := fmt.Sprintf("http://localhost:%d", addr.Port)
 	if err := c.RegisterService(ctx, "notes", selfURL); err != nil {
-		log.Printf("service registry failed: %v", err)
+		logger.Error("service registry failed", "error", err)
 	}
 
 	shutdown, err := notes.BroadcastMDNS(addr.Port, notes.DefaultHealth.Name)
 	if err != nil {
-		log.Printf("mDNS broadcast failed: %v", err)
+		logger.Error("mDNS broadcast failed", "error", err)
 	}
 
 	go func() {
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
-		log.Println("shutting down...")
+		logger.Info("shutting down")
 		if shutdown != nil {
 			shutdown()
 		}
@@ -142,7 +144,7 @@ func migrateCommand() *cli.Command {
 			if err != nil {
 				return fmt.Errorf("migrate: %w", err)
 			}
-			log.Printf("Notes migrations complete (database: %s)", dbID)
+			logger.Info("migrations complete", "db_id", dbID)
 			return nil
 		},
 	}
