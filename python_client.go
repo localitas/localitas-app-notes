@@ -13,10 +13,17 @@ import (
 type PythonRunner struct {
 	baseURL string
 	token   string
+	// httpClient is created once with the runner (which is long-lived, built once
+	// at startup) and reused for every Execute, instead of a fresh client per run.
+	httpClient *http.Client
 }
 
 func NewPythonRunner(baseURL, token string) *PythonRunner {
-	return &PythonRunner{baseURL: baseURL, token: token}
+	return &PythonRunner{
+		baseURL:    baseURL,
+		token:      token,
+		httpClient: &http.Client{Timeout: 120 * time.Second},
+	}
 }
 
 type pythonExecRequest struct {
@@ -49,8 +56,7 @@ func (p *PythonRunner) Execute(ctx context.Context, code string, variables map[s
 		req.Header.Set("Authorization", "Bearer "+p.token)
 	}
 
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("python runner unavailable: %w", err)
 	}
