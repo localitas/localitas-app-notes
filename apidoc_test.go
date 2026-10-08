@@ -8,24 +8,27 @@ import (
 	"testing"
 )
 
-func TestHandleSwagger_ReturnsValidOpenAPI(t *testing.T) {
-	req := httptest.NewRequest("GET", "/swagger.json", nil)
+func TestHandleSwagger_ReturnsAPIDoc(t *testing.T) {
 	w := httptest.NewRecorder()
-	HandleSwagger(w, req)
-
+	HandleSwagger(w, httptest.NewRequest("GET", "/swagger.json", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var spec map[string]interface{}
+	var spec APIDoc
 	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if spec["openapi"] != "3.0.3" {
-		t.Errorf("expected openapi 3.0.3, got %v", spec["openapi"])
+	if spec.AppName != "Notes" {
+		t.Errorf("expected app_name Notes, got %q", spec.AppName)
 	}
-	paths, _ := spec["paths"].(map[string]interface{})
-	if paths["/api/notes"] == nil {
-		t.Error("expected /api/notes path")
+	hasNotes := false
+	for _, ep := range spec.Endpoints {
+		if ep.Path == "/api/notes" {
+			hasNotes = true
+		}
+	}
+	if !hasNotes {
+		t.Error("expected /api/notes endpoint")
 	}
 }
 
