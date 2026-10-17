@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,10 @@ import (
 )
 
 const DatabaseName = "notes"
+
+// ErrNotFound is returned for a note that does not exist or belongs to
+// another user: the two are indistinguishable to the caller.
+var ErrNotFound = errors.New("note not found")
 
 type Store struct {
 	db           *sql.DB
@@ -59,14 +64,18 @@ func (s *Store) Create(ctx context.Context, userID, title, content string) (*Not
 	}, nil
 }
 
-func (s *Store) Get(ctx context.Context, id string) (*Note, error) {
+// Get returns userID's note id.
+func (s *Store) Get(ctx context.Context, userID, id string) (*Note, error) {
 	var n Note
 	var createdAt, updatedAt int64
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, title, content, tags, summary, created_at, updated_at FROM notes WHERE id = ?", id,
+		"SELECT id, title, content, tags, summary, created_at, updated_at FROM notes WHERE id = ? AND user_id = ?", id, userID,
 	).Scan(&n.ID, &n.Title, &n.Content, &n.Tags, &n.Summary, &createdAt, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
-		return nil, fmt.Errorf("note %s not found", id)
+		return nil, fmt.Errorf("read note %s: %w", id, err)
 	}
 	n.CreatedAt = time.Unix(createdAt, 0)
 	n.UpdatedAt = time.Unix(updatedAt, 0)
@@ -93,21 +102,37 @@ func (s *Store) List(ctx context.Context, userID string, limit, offset int) ([]*
 		n.UpdatedAt = time.Unix(updatedAt, 0)
 		out = append(out, &n)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
-func (s *Store) Update(ctx context.Context, id, title, content string) error {
+// Update rewrites userID's note id.
+func (s *Store) Update(ctx context.Context, userID, id, title, content string) error {
 	now := time.Now().UTC().Unix()
 	summary := extractSummary(content)
-	_, err := s.db.ExecContext(ctx,
-		"UPDATE notes SET title = ?, content = ?, summary = ?, updated_at = ? WHERE id = ?",
-		title, content, summary, now, id)
-	return err
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE notes SET title = ?, content = ?, summary = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+		title, content, summary, now, id, userID)
+	return requireOneRow(res, err)
 }
 
-func (s *Store) Delete(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM notes WHERE id = ?", id)
-	return err
+// Delete removes userID's note id.
+func (s *Store) Delete(ctx context.Context, userID, id string) error {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM notes WHERE id = ? AND user_id = ?", id, userID)
+	return requireOneRow(res, err)
+}
+
+func requireOneRow(res sql.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) Search(ctx context.Context, userID, query string, limit int) ([]*Note, error) {
@@ -135,7 +160,7 @@ func (s *Store) Search(ctx context.Context, userID, query string, limit int) ([]
 		n.UpdatedAt = time.Unix(updatedAt, 0)
 		out = append(out, &n)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
 func newNoteID() string {

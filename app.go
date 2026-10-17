@@ -79,21 +79,29 @@ func (a *App) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", a.handleIndex)
 	mux.HandleFunc("GET /swagger.json", HandleSwagger)
 	mux.HandleFunc("GET /help.md", handleHelpMarkdown)
-	mux.HandleFunc("GET /api/notes", h.handleList)
-	mux.HandleFunc("POST /api/notes", h.handleCreate)
-	mux.HandleFunc("GET /api/notes/{id}", h.handleGet)
-	mux.HandleFunc("PUT /api/notes/{id}", h.handleUpdate)
-	mux.HandleFunc("DELETE /api/notes/{id}", h.handleDelete)
-	mux.HandleFunc("GET /api/search", h.handleSearch)
-	mux.HandleFunc("POST /api/notes/{id}/execute", h.handleExecute)
-	mux.HandleFunc("POST /api/notes/{id}/execute/{blockID}", h.handleExecuteBlock)
+	// Every note route acts for the user core vouches for; one without a
+	// verified user is refused, and changing a note needs write scope.
+	user := func(pattern string, handler http.HandlerFunc) {
+		mux.Handle(pattern, client.AuthMiddleware(handler))
+	}
+	writer := func(pattern string, handler http.HandlerFunc) {
+		user(pattern, client.RequireScopeFunc(client.ScopeWrite, handler))
+	}
+	user("GET /api/notes", h.handleList)
+	writer("POST /api/notes", h.handleCreate)
+	user("GET /api/notes/{id}", h.handleGet)
+	writer("PUT /api/notes/{id}", h.handleUpdate)
+	writer("DELETE /api/notes/{id}", h.handleDelete)
+	user("GET /api/search", h.handleSearch)
+	writer("POST /api/notes/{id}/execute", h.handleExecute)
+	writer("POST /api/notes/{id}/execute/{blockID}", h.handleExecuteBlock)
 
-	mux.HandleFunc("GET /partials/sidebar", p.handleSidebar)
-	mux.HandleFunc("GET /partials/editor/{id}", p.handleEditor)
-	mux.HandleFunc("GET /partials/empty", p.handleEmpty)
-	mux.HandleFunc("POST /partials/create", p.handleCreate)
-	mux.HandleFunc("POST /partials/save/{id}", p.handleSave)
-	mux.HandleFunc("DELETE /partials/delete/{id}", p.handleDelete)
-	mux.HandleFunc("POST /partials/search", p.handleSearch)
-	mux.HandleFunc("POST /partials/execute/{id}", p.handleExecute)
+	user("GET /partials/sidebar", p.handleSidebar)
+	user("GET /partials/editor/{id}", p.handleEditor)
+	user("GET /partials/empty", p.handleEmpty)
+	writer("POST /partials/create", p.handleCreate)
+	writer("POST /partials/save/{id}", p.handleSave)
+	writer("DELETE /partials/delete/{id}", p.handleDelete)
+	user("POST /partials/search", p.handleSearch)
+	writer("POST /partials/execute/{id}", p.handleExecute)
 }

@@ -1,6 +1,7 @@
 package notes
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -73,7 +74,7 @@ func (p *partialHandler) tmplOOB() (*template.Template, error) {
 }
 
 func (p *partialHandler) sidebarItems(r *http.Request) []NoteListItem {
-	userID := client.UserIDFromRequest(r)
+	userID := client.GetUserID(r.Context())
 	notes, _ := p.app.Store.List(r.Context(), userID, 100, 0)
 	items := make([]NoteListItem, 0, len(notes))
 	for _, n := range notes {
@@ -115,7 +116,7 @@ func (p *partialHandler) handleEditor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	note, err := p.app.Store.Get(r.Context(), id)
+	note, err := p.app.Store.Get(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
 		http.Error(w, "Note not found", http.StatusNotFound)
 		return
@@ -140,7 +141,7 @@ func (p *partialHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	userID := client.UserIDFromRequest(r)
+	userID := client.GetUserID(r.Context())
 	note, err := p.app.Store.Create(r.Context(), userID, "Untitled", "")
 	if err != nil {
 		http.Error(w, "Failed to create note", http.StatusInternalServerError)
@@ -169,11 +170,11 @@ func (p *partialHandler) handleSave(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	content := r.FormValue("content")
 
-	if err := p.app.Store.Update(r.Context(), id, title, content); err != nil {
-		http.Error(w, "Failed to save: "+err.Error(), http.StatusBadRequest)
+	if err := p.app.Store.Update(r.Context(), client.GetUserID(r.Context()), id, title, content); err != nil {
+		partialStoreErr(w, "Failed to save", err)
 		return
 	}
-	note, err := p.app.Store.Get(r.Context(), id)
+	note, err := p.app.Store.Get(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
 		http.Error(w, "Failed to reload note after save", http.StatusInternalServerError)
 		return
@@ -198,8 +199,8 @@ func (p *partialHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Note ID required", http.StatusBadRequest)
 		return
 	}
-	if err := p.app.Store.Delete(r.Context(), id); err != nil {
-		http.Error(w, "Failed to delete: "+err.Error(), http.StatusInternalServerError)
+	if err := p.app.Store.Delete(r.Context(), client.GetUserID(r.Context()), id); err != nil {
+		partialStoreErr(w, "Failed to delete", err)
 		return
 	}
 
@@ -219,18 +220,18 @@ func (p *partialHandler) handleExecute(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	content := r.FormValue("content")
 
-	if err := p.app.Store.Update(r.Context(), id, title, content); err != nil {
-		http.Error(w, "Failed to save: "+err.Error(), http.StatusBadRequest)
+	if err := p.app.Store.Update(r.Context(), client.GetUserID(r.Context()), id, title, content); err != nil {
+		partialStoreErr(w, "Failed to save", err)
 		return
 	}
 
-	results, err := p.app.Store.ExecuteAllBlocks(r.Context(), id)
+	results, err := p.app.Store.ExecuteAllBlocks(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
-		http.Error(w, "Execution failed: "+err.Error(), http.StatusInternalServerError)
+		partialStoreErr(w, "Execution failed", err)
 		return
 	}
 
-	note, err := p.app.Store.Get(r.Context(), id)
+	note, err := p.app.Store.Get(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
 		http.Error(w, "Failed to reload note", http.StatusInternalServerError)
 		return
@@ -265,7 +266,7 @@ func (p *partialHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		p.handleSidebar(w, r)
 		return
 	}
-	userID := client.UserIDFromRequest(r)
+	userID := client.GetUserID(r.Context())
 	results, err := p.app.Store.Search(r.Context(), userID, query, 100)
 	if err != nil {
 		http.Error(w, "Search failed", http.StatusInternalServerError)
@@ -286,4 +287,12 @@ func (p *partialHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html")
 	tmpl.ExecuteTemplate(w, "sidebar_list", SidebarData{Notes: items})
+}
+
+func partialStoreErr(w http.ResponseWriter, what string, err error) {
+	if errors.Is(err, ErrNotFound) {
+		http.Error(w, "Note not found", http.StatusNotFound)
+		return
+	}
+	http.Error(w, what+": "+err.Error(), http.StatusInternalServerError)
 }

@@ -2,6 +2,7 @@ package notes
 
 import (
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -15,7 +16,7 @@ type handler struct {
 }
 
 func (h *handler) handleList(w http.ResponseWriter, r *http.Request) {
-	userID := client.UserIDFromRequest(r)
+	userID := client.GetUserID(r.Context())
 	limit := intParam(r, "limit", 50)
 	offset := intParam(r, "offset", 0)
 
@@ -30,16 +31,16 @@ func (h *handler) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) handleGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	n, err := h.app.Store.Get(r.Context(), id)
+	n, err := h.app.Store.Get(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
-		writeErr(w, r, http.StatusNotFound, "note not found: %v", err)
+		writeStoreErr(w, r, err)
 		return
 	}
 	writeJSON(w, r, http.StatusOK, n)
 }
 
 func (h *handler) handleCreate(w http.ResponseWriter, r *http.Request) {
-	userID := client.UserIDFromRequest(r)
+	userID := client.GetUserID(r.Context())
 	var req struct {
 		Title   string `json:"title"`
 		Content string `json:"content"`
@@ -66,11 +67,11 @@ func (h *handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, http.StatusBadRequest, "invalid request body: %v", err)
 		return
 	}
-	if err := h.app.Store.Update(r.Context(), id, req.Title, req.Content); err != nil {
-		writeErr(w, r, http.StatusInternalServerError, "%v", err)
+	if err := h.app.Store.Update(r.Context(), client.GetUserID(r.Context()), id, req.Title, req.Content); err != nil {
+		writeStoreErr(w, r, err)
 		return
 	}
-	n, err := h.app.Store.Get(r.Context(), id)
+	n, err := h.app.Store.Get(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, "saved but failed to reload: %v", err)
 		return
@@ -80,15 +81,15 @@ func (h *handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := h.app.Store.Delete(r.Context(), id); err != nil {
-		writeErr(w, r, http.StatusInternalServerError, "failed to delete note: %v", err)
+	if err := h.app.Store.Delete(r.Context(), client.GetUserID(r.Context()), id); err != nil {
+		writeStoreErr(w, r, err)
 		return
 	}
 	writeJSON(w, r, http.StatusOK, map[string]bool{"success": true})
 }
 
 func (h *handler) handleSearch(w http.ResponseWriter, r *http.Request) {
-	userID := client.UserIDFromRequest(r)
+	userID := client.GetUserID(r.Context())
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		writeErr(w, r, http.StatusBadRequest, "query parameter 'q' is required")
@@ -107,9 +108,9 @@ func (h *handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) handleExecute(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	results, err := h.app.Store.ExecuteAllBlocks(r.Context(), id)
+	results, err := h.app.Store.ExecuteAllBlocks(r.Context(), client.GetUserID(r.Context()), id)
 	if err != nil {
-		writeErr(w, r, http.StatusInternalServerError, "execution failed: %v", err)
+		writeStoreErr(w, r, err)
 		return
 	}
 	writeJSON(w, r, http.StatusOK, results)
@@ -118,9 +119,9 @@ func (h *handler) handleExecute(w http.ResponseWriter, r *http.Request) {
 func (h *handler) handleExecuteBlock(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	blockID := r.PathValue("blockID")
-	result, err := h.app.Store.ExecuteSingleBlock(r.Context(), id, blockID)
+	result, err := h.app.Store.ExecuteSingleBlock(r.Context(), client.GetUserID(r.Context()), id, blockID)
 	if err != nil {
-		writeErr(w, r, http.StatusInternalServerError, "execution failed: %v", err)
+		writeStoreErr(w, r, err)
 		return
 	}
 	writeJSON(w, r, http.StatusOK, result)
@@ -132,6 +133,16 @@ func writeJSON(w http.ResponseWriter, r *http.Request, status int, v interface{}
 
 func writeErr(w http.ResponseWriter, r *http.Request, status int, format string, args ...interface{}) {
 	httputil.WriteError(w, r, status, format, args...)
+}
+
+// writeStoreErr answers 404 for a note that is not the caller's, 500 for
+// anything else.
+func writeStoreErr(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, ErrNotFound) {
+		writeErr(w, r, http.StatusNotFound, "note not found")
+		return
+	}
+	writeErr(w, r, http.StatusInternalServerError, "%v", err)
 }
 
 func intParam(r *http.Request, key string, def int) int {

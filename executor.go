@@ -32,10 +32,10 @@ func noteDataDir(noteID string) string {
 	return filepath.Join(homeDir, ".localitas", "apps", "notes-standalone", "data", noteID)
 }
 
-func (s *Store) ExecuteAllBlocks(ctx context.Context, noteID string) (*ExecutionResults, error) {
-	note, err := s.Get(ctx, noteID)
+func (s *Store) ExecuteAllBlocks(ctx context.Context, userID, noteID string) (*ExecutionResults, error) {
+	note, err := s.Get(ctx, userID, noteID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load note: %w", err)
+		return nil, err
 	}
 
 	blocks := ParseCodeBlocks(note.Content)
@@ -126,10 +126,10 @@ func (s *Store) ExecuteAllBlocks(ctx context.Context, noteID string) (*Execution
 	return execResults, nil
 }
 
-func (s *Store) ExecuteSingleBlock(ctx context.Context, noteID, blockID string) (*ExecutionResult, error) {
-	note, err := s.Get(ctx, noteID)
+func (s *Store) ExecuteSingleBlock(ctx context.Context, userID, noteID, blockID string) (*ExecutionResult, error) {
+	note, err := s.Get(ctx, userID, noteID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load note: %w", err)
+		return nil, err
 	}
 
 	blocks := ParseCodeBlocks(note.Content)
