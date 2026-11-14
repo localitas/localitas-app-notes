@@ -3,7 +3,6 @@ package notes
 import (
 	"encoding/json"
 	"errors"
-	"html/template"
 	"net/http"
 	"strconv"
 
@@ -152,8 +151,4 @@ func intParam(r *http.Request, key string, def int) int {
 		}
 	}
 	return def
-}
-
-func escapeHTML(s string) string {
-	return template.HTMLEscapeString(s)
 }
