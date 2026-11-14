@@ -84,7 +84,7 @@ func (s *Store) ExecuteAllBlocks(ctx context.Context, userID, noteID string) (*E
 
 		case "python":
 			if s.PythonRunner == nil {
-				execErr = fmt.Errorf("Python runner not configured")
+				execErr = fmt.Errorf("python runner not configured")
 			} else {
 				vars := make(map[string]interface{})
 				for k, v := range registry.Variables {
@@ -177,7 +177,7 @@ func (s *Store) ExecuteSingleBlock(ctx context.Context, userID, noteID, blockID 
 
 	case "python":
 		if s.PythonRunner == nil {
-			execErr = fmt.Errorf("Python runner not configured")
+			execErr = fmt.Errorf("python runner not configured")
 		} else {
 			vars := make(map[string]interface{})
 			for k, v := range registry.Variables {
