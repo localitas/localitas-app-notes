@@ -61,19 +61,19 @@ bin/notes-server --version
 ### Build from source
 
 ```bash
-# Native binary
-go build -o bin/notes-server ./cmd/notes-server
+# Native binary (bin/notes-server)
+make build
 
-# Native binary plus the Linux amd64 binary the Docker image is built from (notes-server-linux-amd64)
+# Linux amd64 binary the Docker image is built from (notes-server-linux-amd64)
 make build-linux
 ```
 
-`make lint` runs gofmt and go vet; `make test` runs them and then the tests. `make build` runs only the lint step.
+Both run `make lint` (gofmt and go vet) first; `make test` runs the lint step and then the tests.
 
 ### Run natively
 
 ```bash
-make start   # writes the launchd service com.localitas.app.notes for bin/notes-server and loads it on port 9202
+make start   # builds bin/notes-server, writes the launchd service com.localitas.app.notes for bin/notes-server and loads it on port 9202
 make stop
 make logs    # follows ~/.localitas/logs/notes/stdout.log
 ```
