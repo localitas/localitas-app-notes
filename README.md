@@ -31,7 +31,7 @@ cd ~/localitas-app-notes
 
 # Build and run locally
 make build
-./bin/notes-server serve --listen :8000
+./bin/notes-server serve --listen 127.0.0.1:8000
 
 # Or via launchd (macOS)
 make start
