@@ -6,117 +6,82 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+
+	client "github.com/localitas/localitas-go"
 )
 
-type APIEndpoint struct {
-	Method      string     `json:"method"`
-	Path        string     `json:"path"`
-	Summary     string     `json:"summary"`
-	QueryParams []APIParam `json:"query_params,omitempty"`
-	RequestBody *APIBody   `json:"request_body,omitempty"`
-	Response    *APIBody   `json:"response,omitempty"`
-}
-
-type APIParam struct {
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Required    bool   `json:"required"`
-	Description string `json:"description"`
-}
-
-type APIBody struct {
-	ContentType string `json:"content_type"`
-	Example     string `json:"example"`
-}
-
-type APIFieldDoc struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Example     string `json:"example"`
-}
-
-type APIDoc struct {
-	AppName     string        `json:"app_name"`
-	Version     string        `json:"version"`
-	Description string        `json:"description"`
-	Keywords    []string      `json:"keywords,omitempty"`
-	Fields      []APIFieldDoc `json:"fields,omitempty"`
-	Endpoints   []APIEndpoint `json:"endpoints"`
-}
-
-var NotesAPIDoc = APIDoc{
+var NotesAPIDoc = client.APISpec{
 	AppName:     "Notes",
 	Version:     "0.1.0",
 	Description: "Markdown notes with full-text search and code execution (JavaScript)",
 	Keywords:    []string{"notes", "note", "memo", "markdown", "write", "document", "journal", "notebook", "snippet", "text"},
-	Fields: []APIFieldDoc{
+	Fields: []client.APIField{
 		{Name: "Headings & Text", Description: "Standard markdown formatting", Example: "# Heading 1\n## Heading 2\n\n**bold** *italic* ~~strikethrough~~\n[link](https://example.com)"},
 		{Name: "Lists & Tasks", Description: "Bullet lists, numbered lists, task lists", Example: "- Bullet item\n  - Nested\n\n1. First\n2. Second\n\n- [ ] Todo\n- [x] Done"},
 		{Name: "Code Blocks", Description: "Fenced code blocks with optional variable name", Example: "```js:myVar\nconst x = 42;\nx\n```"},
 		{Name: "Tables & Quotes", Description: "Blockquotes and tables", Example: "> Blockquote\n\n| Col 1 | Col 2 |\n|-------|-------|\n| A     | B     |"},
 	},
-	Endpoints: []APIEndpoint{
+	Endpoints: []client.APIEndpoint{
 		{
 			Method:  "GET",
 			Path:    "/api/notes",
 			Summary: "List all notes",
-			QueryParams: []APIParam{
+			QueryParams: []client.APIParam{
 				{Name: "limit", Type: "integer", Description: "Max results (default 50)"},
 				{Name: "offset", Type: "integer", Description: "Pagination offset (default 0)"},
 			},
-			Response: &APIBody{ContentType: "application/json", Example: `[{"id":"abc...","title":"My Note","content":"# Hello\n...","summary":"Hello world..."}]`},
+			Response: &client.APIBody{ContentType: "application/json", Example: `[{"id":"abc...","title":"My Note","content":"# Hello\n...","summary":"Hello world..."}]`},
 		},
 		{
 			Method:      "POST",
 			Path:        "/api/notes",
 			Summary:     "Create a note",
-			RequestBody: &APIBody{ContentType: "application/json", Example: `{"title":"My Note","content":"# Hello\nWorld"}`},
-			Response:    &APIBody{ContentType: "application/json", Example: `{"id":"abc...","title":"My Note","content":"# Hello\nWorld"}`},
+			RequestBody: &client.APIBody{ContentType: "application/json", Example: `{"title":"My Note","content":"# Hello\nWorld"}`},
+			Response:    &client.APIBody{ContentType: "application/json", Example: `{"id":"abc...","title":"My Note","content":"# Hello\nWorld"}`},
 		},
 		{
 			Method:   "GET",
 			Path:     "/api/notes/{id}",
 			Summary:  "Get a note by ID",
-			Response: &APIBody{ContentType: "application/json", Example: `{"id":"abc...","title":"My Note","content":"# Hello\n..."}`},
+			Response: &client.APIBody{ContentType: "application/json", Example: `{"id":"abc...","title":"My Note","content":"# Hello\n..."}`},
 		},
 		{
 			Method:      "PUT",
 			Path:        "/api/notes/{id}",
 			Summary:     "Update a note",
-			RequestBody: &APIBody{ContentType: "application/json", Example: `{"title":"Updated","content":"# Updated\nNew content"}`},
-			Response:    &APIBody{ContentType: "application/json", Example: `{"id":"abc...","title":"Updated","content":"# Updated\n..."}`},
+			RequestBody: &client.APIBody{ContentType: "application/json", Example: `{"title":"Updated","content":"# Updated\nNew content"}`},
+			Response:    &client.APIBody{ContentType: "application/json", Example: `{"id":"abc...","title":"Updated","content":"# Updated\n..."}`},
 		},
 		{
 			Method:   "DELETE",
 			Path:     "/api/notes/{id}",
 			Summary:  "Delete a note",
-			Response: &APIBody{ContentType: "application/json", Example: `{"success":true}`},
+			Response: &client.APIBody{ContentType: "application/json", Example: `{"success":true}`},
 		},
 		{
 			Method:  "GET",
 			Path:    "/api/search",
 			Summary: "Search notes (FTS5)",
-			QueryParams: []APIParam{
+			QueryParams: []client.APIParam{
 				{Name: "q", Type: "string", Required: true, Description: "Search query"},
 				{Name: "limit", Type: "integer", Description: "Max results (default 20)"},
 			},
-			Response: &APIBody{ContentType: "application/json", Example: `[{"id":"abc...","title":"My Note","content":"..."}]`},
+			Response: &client.APIBody{ContentType: "application/json", Example: `[{"id":"abc...","title":"My Note","content":"..."}]`},
 		},
 		{
 			Method:   "POST",
 			Path:     "/api/notes/{id}/execute",
 			Summary:  "Execute all code blocks in a note",
-			Response: &APIBody{ContentType: "application/json", Example: `{"id":"abc...","total_blocks":2,"success_count":2,"results":{"block_0":{"success":true,"output":"42"}}}`},
+			Response: &client.APIBody{ContentType: "application/json", Example: `{"id":"abc...","total_blocks":2,"success_count":2,"results":{"block_0":{"success":true,"output":"42"}}}`},
 		},
 	},
 }
 
 func HandleSwagger(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(NotesAPIDoc)
+	NotesAPIDoc.ServeHTTP(w, r)
 }
 
-func RenderDocsHTML(doc APIDoc) template.HTML {
+func RenderDocsHTML(doc client.APISpec) template.HTML {
 	var sb strings.Builder
 	if len(doc.Fields) > 0 {
 		sb.WriteString(`<h3 style="font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-secondary); margin-bottom: 1rem;">Markdown Guide</h3><div class="accordion-list">`)
