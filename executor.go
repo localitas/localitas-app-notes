@@ -86,13 +86,10 @@ func (s *Store) ExecuteAllBlocks(ctx context.Context, userID, noteID string) (*E
 			if s.PythonRunner == nil {
 				execErr = fmt.Errorf("python runner not configured")
 			} else {
-				vars := make(map[string]interface{})
-				for k, v := range registry.Variables {
-					if v.Value != nil {
-						vars[k] = v.Value
-					}
+				var vars map[string]json.RawMessage
+				if vars, execErr = pythonVariables(registry); execErr == nil {
+					output, execErr = s.PythonRunner.Execute(ctx, block.Content, vars, requirements)
 				}
-				output, execErr = s.PythonRunner.Execute(ctx, block.Content, vars, requirements)
 			}
 
 		case "requirements.txt":
@@ -179,14 +176,10 @@ func (s *Store) ExecuteSingleBlock(ctx context.Context, userID, noteID, blockID 
 		if s.PythonRunner == nil {
 			execErr = fmt.Errorf("python runner not configured")
 		} else {
-			vars := make(map[string]interface{})
-			for k, v := range registry.Variables {
-				if v.Value != nil {
-					vars[k] = v.Value
-				}
+			var vars map[string]json.RawMessage
+			if vars, execErr = pythonVariables(registry); execErr == nil {
+				output, execErr = s.PythonRunner.Execute(ctx, targetBlock.Content, vars, extractRequirements(blocks))
 			}
-			reqs := extractRequirements(blocks)
-			output, execErr = s.PythonRunner.Execute(ctx, targetBlock.Content, vars, reqs)
 		}
 
 	default:
@@ -207,6 +200,23 @@ func (s *Store) ExecuteSingleBlock(ctx context.Context, userID, noteID, blockID 
 
 	result.Duration = time.Since(startTime).Milliseconds()
 	return result, nil
+}
+
+// pythonVariables is each registered variable holding a value, as the JSON a
+// Python block binds it to.
+func pythonVariables(registry *VariableRegistry) (map[string]json.RawMessage, error) {
+	vars := make(map[string]json.RawMessage)
+	for name, v := range registry.Variables {
+		if v.Value == nil {
+			continue
+		}
+		raw, err := json.Marshal(v.Value)
+		if err != nil {
+			return nil, fmt.Errorf("variable %s: %w", name, err)
+		}
+		vars[name] = raw
+	}
+	return vars, nil
 }
 
 func extractRequirements(blocks []*CodeBlock) []string {
