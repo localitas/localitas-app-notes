@@ -3,10 +3,33 @@ package notes
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	client "github.com/localitas/localitas-go"
 )
+
+// A Python block sees each registered variable that holds a value as the
+// JSON of that value; one with none is left out.
+func TestPythonVariables(t *testing.T) {
+	registry := NewVariableRegistry()
+	registry.Variables["n"] = &Variable{Name: "n", Value: 42}
+	registry.Variables["rows"] = &Variable{Name: "rows", Value: []map[string]string{{"a": "<b>"}}}
+	registry.Variables["schema_only"] = &Variable{Name: "schema_only"}
+	vars, err := pythonVariables(registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(client.ShellExecuteRequest{Code: "print(n)", Variables: vars})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "{\"code\":\"print(n)\",\"variables\":{\"n\":42,\"rows\":[{\"a\":\"\\u003cb\\u003e\"}]}}"; string(body) != want {
+		t.Errorf("request body:\n got %s\nwant %s", body, want)
+	}
+}
 
 func TestPythonRunner_Execute(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -17,14 +40,9 @@ func TestPythonRunner_Execute(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 
-		var req pythonExecRequest
-		json.NewDecoder(r.Body).Decode(&req)
-
-		if req.Code != "print('hello')" {
-			t.Errorf("unexpected code: %s", req.Code)
-		}
-		if req.Variables["x"] != float64(42) {
-			t.Errorf("unexpected variable x: %v", req.Variables["x"])
+		body, _ := io.ReadAll(r.Body)
+		if want := `{"code":"print('hello')","variables":{"x":42}}`; string(body) != want {
+			t.Errorf("request body:\n got %s\nwant %s", body, want)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -33,7 +51,7 @@ func TestPythonRunner_Execute(t *testing.T) {
 	defer srv.Close()
 
 	runner := NewPythonRunner(srv.URL, "")
-	output, err := runner.Execute(context.Background(), "print('hello')", map[string]interface{}{"x": 42}, nil)
+	output, err := runner.Execute(context.Background(), "print('hello')", map[string]json.RawMessage{"x": json.RawMessage(`42`)}, nil)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -71,7 +89,7 @@ func TestPythonRunner_Unavailable(t *testing.T) {
 func TestPythonRunner_WithRequirements(t *testing.T) {
 	var receivedReqs []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req pythonExecRequest
+		var req client.ShellExecuteRequest
 		json.NewDecoder(r.Body).Decode(&req)
 		receivedReqs = req.Requirements
 		w.Header().Set("Content-Type", "application/json")

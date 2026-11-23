@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	client "github.com/localitas/localitas-go"
 )
 
 type PythonRunner struct {
@@ -26,19 +28,15 @@ func NewPythonRunner(baseURL, token string) *PythonRunner {
 	}
 }
 
-type pythonExecRequest struct {
-	Code         string                 `json:"code"`
-	Variables    map[string]interface{} `json:"variables,omitempty"`
-	Requirements []string               `json:"requirements,omitempty"`
-}
-
 type pythonExecResponse struct {
 	Output string `json:"output"`
 	Error  string `json:"error,omitempty"`
 }
 
-func (p *PythonRunner) Execute(ctx context.Context, code string, variables map[string]interface{}, requirements []string) (string, error) {
-	body, err := json.Marshal(pythonExecRequest{
+// Execute runs code in core's shell with each variable bound to its JSON
+// value.
+func (p *PythonRunner) Execute(ctx context.Context, code string, variables map[string]json.RawMessage, requirements []string) (string, error) {
+	body, err := json.Marshal(client.ShellExecuteRequest{
 		Code:         code,
 		Variables:    variables,
 		Requirements: requirements,
