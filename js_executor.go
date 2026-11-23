@@ -32,19 +32,17 @@ func ExecuteJSBlock(block *CodeBlock, registry *VariableRegistry) (*Variable, st
 	executor := NewJSExecutor()
 
 	for varName, variable := range registry.Variables {
-		var value interface{}
-		switch variable.Type {
-		case "dataframe":
-			value = map[string]interface{}{
-				"_type":    "dataframe",
-				"_name":    varName,
-				"_rows":    variable.Schema.Rows,
-				"_columns": len(variable.Schema.Columns),
+		value := variable.Value
+		if variable.Type == "dataframe" {
+			df, err := executor.dataframeView(varName, variable.Schema)
+			if err != nil {
+				return nil, "", err
 			}
-		default:
-			value = variable.Value
+			value = df
 		}
-		executor.vm.Set(varName, value)
+		if err := executor.vm.Set(varName, value); err != nil {
+			return nil, "", fmt.Errorf("set %s: %w", varName, err)
+		}
 	}
 
 	result, err := executor.vm.RunString(block.Content)
@@ -83,6 +81,27 @@ func ExecuteJSBlock(block *CodeBlock, registry *VariableRegistry) (*Variable, st
 	return variable, output, nil
 }
 
+// dataframeView is what JS sees of a dataframe: its shape, not its rows.
+func (e *JSExecutor) dataframeView(name string, schema *DataSchema) (*goja.Object, error) {
+	df := e.vm.NewObject()
+	for _, p := range []struct {
+		key   string
+		value any
+	}{
+		{"_type", "dataframe"},
+		{"_name", name},
+		{"_rows", schema.Rows},
+		{"_columns", len(schema.Columns)},
+	} {
+		if err := df.Set(p.key, p.value); err != nil {
+			return nil, fmt.Errorf("dataframe %s: set %s: %w", name, p.key, err)
+		}
+	}
+	return df, nil
+}
+
+// detectJSType and formatJSOutput read goja's Export of a JS object,
+// which is a map[string]interface{}.
 func detectJSType(value interface{}) string {
 	if value == nil {
 		return "null"
