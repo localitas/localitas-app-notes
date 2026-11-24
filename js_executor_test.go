@@ -103,6 +103,28 @@ func TestExecuteJSBlock_VariableInjection(t *testing.T) {
 	}
 }
 
+func TestExecuteJSBlock_DataframeView(t *testing.T) {
+	registry := NewVariableRegistry()
+	registry.AddVariable("df", "dataframe", "csv:data/test.csv", "block_0", &DataSchema{
+		Columns: []*ColumnSchema{{Name: "a"}, {Name: "b"}},
+		Rows:    3,
+	}, nil)
+
+	block := &CodeBlock{
+		ID:       "block_1",
+		Language: "js",
+		Content:  "[df._type, df._name, df._rows, df._columns, Object.keys(df).sort().join(',')].join(' ')",
+	}
+
+	_, output, err := ExecuteJSBlock(block, registry)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if want := "dataframe df 3 2 _columns,_name,_rows,_type"; output != want {
+		t.Errorf("got %q, want %q", output, want)
+	}
+}
+
 func TestExecuteJSBlock_SyntaxError(t *testing.T) {
 	registry := NewVariableRegistry()
 	block := &CodeBlock{
